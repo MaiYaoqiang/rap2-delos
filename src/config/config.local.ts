@@ -15,7 +15,7 @@ let config: IConfigOptions = {
     host: process.env.MYSQL_URL || "localhost",
     port: (process.env.MYSQL_PORT && parseInt(process.env.MYSQL_PORT)) || 3306,
     username: process.env.MYSQL_USERNAME || "root",
-    password: process.env.MYSQL_PASSWD || "",
+    password: process.env.MYSQL_PASSWD || "123456",
     database: process.env.MYSQL_SCHEMA || "RAP2_DELOS_APP_LOCAL",
     pool: {
       max: 5,

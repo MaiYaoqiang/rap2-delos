@@ -8,6 +8,7 @@ import { Op } from 'sequelize'
 import RedisService, { CACHE_KEY } from './redis'
 import MailService from './mail'
 import * as md5 from 'md5'
+
 const isMd5 = require('is-md5')
 import * as _ from 'lodash'
 
@@ -412,6 +413,7 @@ export default class MigrateService {
           for (const p of action.responseParameterList) {
             await processParam(p, SCOPES.RESPONSE)
           }
+
           async function processParam(p: OldParameter, scope: SCOPES, parentId?: number) {
             const RE_REMARK_MOCK = /@mock=(.+)$/
             const ramarkMatchMock = RE_REMARK_MOCK.exec(p.remark)
@@ -455,6 +457,7 @@ export default class MigrateService {
     }
     return true
   }
+
   public static checkAndFix(): void {
     // console.log('checkAndFix')
     // this.checkPasswordMd5().then()
@@ -482,7 +485,7 @@ export default class MigrateService {
     curUserId: number,
     docUrl: string,
     version: number,
-    projectDataJSON: string
+    projectDataJSON: string,
   ): Promise<boolean> {
     let result: any = null
     if (version === 1) {
@@ -588,15 +591,26 @@ export default class MigrateService {
     const successObj = response['200']
     if (!successObj) return []
 
-    const { schema } = successObj
-    if (!schema?.$ref) {
+    let { schema } = successObj
+    if (!schema?.$ref && !schema.allOf) {
       // 没有按照接口规范返回数据结构,默认都是对象
       return []
     }
 
     const parameters = []
-    const refName = schema.$ref.split('#/definitions/')[1]
-    const ref = definitions[refName]
+    let ref = null
+    if (schema.allOf) {
+      let globalRef = null
+      let global = schema.allOf[0]
+      const globalRefName = global.$ref.split('#/definitions/')[1]
+      globalRef = definitions[globalRefName]
+      globalRef.properties.data = schema.allOf[1].properties.data
+      ref = globalRef
+    } else {
+      let refName = schema.$ref.split('#/definitions/')[1]
+      ref = definitions[refName]
+    }
+
     if (ref && ref.properties) {
       const properties = ref.properties
 
@@ -660,7 +674,7 @@ export default class MigrateService {
       const { rule, value, type, description } = transformRapParams(p)
       const joinDescription = `${p.description || ''}${
         (p.description || '') && (description || '') ? '|' : ''
-        }${description || ''}`
+      }${description || ''}`
       const pCreated = await Property.create({
         scope,
         name: p.name,
@@ -893,7 +907,7 @@ export default class MigrateService {
                 const { type, description, rule, value } = transformRapParams(bValue)
                 const joinDescription = `${bValue.description || ''}${
                   (bValue.description || '') && (description || '') ? '|' : ''
-                  }${description || ''}`
+                }${description || ''}`
 
                 if (index >= 0) {
                   // 属性存在 ---修改：类型；是否必填；属性说明；不修改规则和默认值(前端可能正在mock)
@@ -916,8 +930,8 @@ export default class MigrateService {
                     // 描述信息变更
                     changeTip = `${changeTip}<br/>接口名称：${apiObj.summary} [更新属性：${
                       A_ExistsProperties[index].name
-                      }属性简介由“${A_ExistsProperties[index].description ||
-                      '无'}”变更为“${joinDescription}”]`
+                    }属性简介由“${A_ExistsProperties[index].description ||
+                    '无'}”变更为“${joinDescription}”]`
                   }
 
                   properties.push({
@@ -937,9 +951,9 @@ export default class MigrateService {
                 } else {
                   changeTip = `${changeTip}<br/>接口名称：${apiObj.summary} [属性添加：${
                     bValue.name
-                    }；类型：${type} ；简介: ${bValue.description || ''}${
+                  }；类型：${type} ；简介: ${bValue.description || ''}${
                     bValue.description || '' ? '|' : ''
-                    }${description || ''} ]`
+                  }${description || ''} ]`
                   // 属性不存在
                   if (depth === 0) {
                     properties.push({
@@ -1017,9 +1031,9 @@ export default class MigrateService {
                   // A 存在，B不存在
                   changeTip = `${changeTip} <br/> 接口名称：${apiObj.summary} [属性删除：${
                     aValue.name
-                    }；类型：${type} ；简介: ${aValue.description || ''} ${
+                  }；类型：${type} ；简介: ${aValue.description || ''} ${
                     description ? `${aValue.description ? '|' : ''}${description}` : ''
-                    } ]`
+                  } ]`
                 }
               }
             }
@@ -1146,8 +1160,10 @@ export default class MigrateService {
                 `仓库：${mailRepositoryName}(${mailRepositoryId})接口更新同步`,
                 sendMailTemplate(changeTip),
               )
-                .then(() => { })
-                .catch(() => { })
+                .then(() => {
+                })
+                .catch(() => {
+                })
 
               // 钉钉消息发送
               // const dingMsg = {
@@ -1237,6 +1253,7 @@ export default class MigrateService {
     )
     await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, repositoryId)
   }
+
   /** 可以直接让用户把自己本地的 data 数据导入到 RAP 中 */
   public static async importRepoFromJSON(data: JsonData, curUserId: number, createRepo: boolean = false, orgId?: number) {
     function parseJSON(str: string) {
@@ -1250,7 +1267,7 @@ export default class MigrateService {
 
     if (createRepo) {
       if (orgId === undefined) {
-        throw new Error("orgId is essential while createRepo = true")
+        throw new Error('orgId is essential while createRepo = true')
       }
       const repo = await Repository.create({
         name: data.name,
