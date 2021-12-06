@@ -710,7 +710,7 @@ export default class MigrateService {
       if (index < 0 && apiObj.tags.length > 0)
         pathTag.push({
           name: apiObj.tags[0],
-          description: tags.find(item => item.name === apiObj.tags[0]).description || '',
+          description: tags.find(item => item.name === apiObj.tags[0])?.description || '',
         })
     }
     tags = pathTag
